@@ -25,8 +25,9 @@
  ***************************************************************************/
 #include "tool_setup.h"
 
+/*
 #ifdef HAVE_FSETXATTR
-#  include <sys/xattr.h> /* header from libc, not from libattr */
+#  include <sys/xattr.h> /* header from libc, not from libattr 
 #  define USE_XATTR
 #elif (defined(__FreeBSD_version) && (__FreeBSD_version > 500000)) || \
       defined(__MidnightBSD_version)
@@ -34,7 +35,7 @@
 #  include <sys/extattr.h>
 #  define USE_XATTR
 #endif
-
+*/
 #ifdef USE_XATTR
 int fwrite_xattr(CURL *curl, const char *url, int fd);
 

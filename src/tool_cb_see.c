@@ -80,11 +80,11 @@ int tool_seek_cb(void *userdata, curl_off_t offset, int whence)
   }
 #endif
 
-  if(LSEEK_ERROR == lseek(per->infd, offset, whence))
+  //if(LSEEK_ERROR == lseek(per->infd, offset, whence))
     /* could not rewind, the reason is in errno but errno is just not portable
        enough and we do not actually care that much why we failed. We will let
        libcurl know that it may try other means if it wants to. */
-    return CURL_SEEKFUNC_CANTSEEK;
+    //return CURL_SEEKFUNC_CANTSEEK;
 
   return CURL_SEEKFUNC_OK;
 }

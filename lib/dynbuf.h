@@ -31,7 +31,7 @@
    without getting symbol collisions */
 #define Curl_dyn_init(a,b) curlx_dyn_init(a,b)
 #define Curl_dyn_add(a,b) curlx_dyn_add(a,b)
-#define Curl_dyn_addn(a,b,c) curlx_dyn_addn(a,b,c)
+#define Curl_dyn_addn(a,b) curlx_dyn_addn(a,b)
 #define Curl_dyn_addf curlx_dyn_addf
 #define Curl_dyn_vaddf curlx_dyn_vaddf
 #define Curl_dyn_free(a) curlx_dyn_free(a)

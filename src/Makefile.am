@@ -23,11 +23,27 @@
 ###########################################################################
 AUTOMAKE_OPTIONS = foreign nostdinc
 
-# remove targets if the command fails
-.DELETE_ON_ERROR:
+CMAKE_DIST = CMakeLists.txt curl_config.h.cmake
 
-EXTRA_DIST = mk-file-embed.pl mkhelp.pl \
- Makefile.mk curl.rc Makefile.inc CMakeLists.txt .checksrc
+CHECKSRC_DIST = .checksrc vauth/.checksrc vquic/.checksrc vssh/.checksrc \
+ vtls/.checksrc
+
+EXTRA_DIST = Makefile.mk config-win32.h config-win32ce.h config-plan9.h \
+ config-riscos.h config-mac.h curl_config.h.in config-dos.h libcurl.rc  \
+ config-amigaos.h config-win32ce.h config-os400.h setup-os400.h         \
+ $(CMAKE_DIST) setup-win32.h Makefile.soname optiontable.pl libcurl.def \
+ $(CHECKSRC_DIST)
+
+lib_LTLIBRARIES = libcurl.la
+
+if BUILD_UNITTESTS
+noinst_LTLIBRARIES = libcurlu.la
+else
+noinst_LTLIBRARIES =
+endif
+
+# This might hold -Werror
+CFLAGS += @CURL_CFLAG_EXTRAS@
 
 # Specify our include paths here, and do it relative to $(top_srcdir) and
 # $(top_builddir), to ensure that these paths which belong to the library
@@ -36,153 +52,102 @@ EXTRA_DIST = mk-file-embed.pl mkhelp.pl \
 #
 # $(top_srcdir)/include is for libcurl's external include files
 # $(top_builddir)/lib is for libcurl's generated lib/curl_config.h file
-# $(top_builddir)/src is for curl's generated src/curl_config.h file
-# $(top_srcdir)/lib for libcurl's lib/curl_setup.h and other "borrowed" files
-# $(top_srcdir)/src is for curl's src/tool_setup.h and "curl-private" files
+# $(top_srcdir)/lib for libcurl's lib/curl_setup.h and other "private" files
 
 AM_CPPFLAGS = -I$(top_srcdir)/include        \
               -I$(top_builddir)/lib          \
-              -I$(top_builddir)/src          \
-              -I$(top_srcdir)/lib            \
-              -I$(top_srcdir)/src
-
-bin_PROGRAMS = curl
-
-if USE_CPPFLAG_CURL_STATICLIB
-AM_CPPFLAGS += -DCURL_STATICLIB
-endif
-AM_CPPFLAGS += -DBUILDING_CURL
-
-AM_LDFLAGS =
-if USE_UNICODE
-AM_LDFLAGS += -municode
-endif
-
-include Makefile.inc
-
-CLEANFILES =
-
-if USE_UNITY
-curl_EXCLUDE =
-if DEBUGBUILD
-# We must compile this source separately to avoid memdebug.h redefinitions
-# applying to them.
-curl_EXCLUDE += ../lib/curl_multibyte.c
-endif
-if USE_CPPFLAG_CURL_STATICLIB
-curl_CURLX = $(CURLTOOL_LIBCURL_CFILES)
-else
-curl_CURLX = $(CURLX_CFILES)
-endif
-curltool_unity.c: $(top_srcdir)/scripts/mk-unity.pl $(CURL_CFILES) $(curl_CURLX)
-	@PERL@  $(top_srcdir)/scripts/mk-unity.pl $(srcdir) $(CURL_CFILES) $(curl_CURLX) --exclude $(curl_EXCLUDE) > curltool_unity.c
-
-nodist_curl_SOURCES = curltool_unity.c
-curl_SOURCES = $(curl_EXCLUDE)
-CLEANFILES += curltool_unity.c
-else
-# CURL_FILES comes from Makefile.inc
-curl_SOURCES = $(CURL_FILES)
-endif
-if HAVE_WINDRES
-curl_SOURCES += $(CURL_RCFILES)
-$(CURL_RCFILES): tool_version.h
-endif
-
-curl_LDFLAGS = $(AM_LDFLAGS) $(CURL_LDFLAGS_BIN)
-
-# This might hold -Werror
-CFLAGS += @CURL_CFLAG_EXTRAS@
+              -I$(top_srcdir)/lib
 
 # Prevent LIBS from being used for all link targets
 LIBS = $(BLANK_AT_MAKETIME)
 
-curl_LDADD = $(top_builddir)/lib/libcurl.la @LIBCURL_PC_LIBS_PRIVATE@
+include Makefile.soname
 
-# if unit tests are enabled, build a static library to link them with
-if BUILD_UNITTESTS
-noinst_LTLIBRARIES = libcurltool.la
-libcurltool_la_CPPFLAGS = $(AM_CPPFLAGS) -DCURL_STATICLIB -DUNITTESTS
-libcurltool_la_CFLAGS =
-libcurltool_la_LDFLAGS = -static $(LINKFLAGS)
+AM_CPPFLAGS += -DBUILDING_LIBCURL
+AM_LDFLAGS =
+AM_CFLAGS =
+
+# Makefile.inc provides the CSOURCES and HHEADERS defines
+include Makefile.inc
+
 if USE_UNITY
-libcurltool_unity.c: $(top_srcdir)/scripts/mk-unity.pl $(CURL_CFILES) $(CURLTOOL_LIBCURL_CFILES)
-	@PERL@ $(top_srcdir)/scripts/mk-unity.pl $(srcdir) $(CURL_CFILES) $(CURLTOOL_LIBCURL_CFILES) --exclude $(curl_EXCLUDE) > libcurltool_unity.c
+# Keep these separate to avoid duplicate definitions when linking libtests
+# in static mode.
+curl_EXCLUDE = curl_threads.c timediff.c warnless.c
+if DEBUGBUILD
+# We must compile these sources separately to avoid memdebug.h redefinitions
+# applying to them.
+curl_EXCLUDE += memdebug.c curl_multibyte.c
+endif
+libcurl_unity.c: $(top_srcdir)/scripts/mk-unity.pl $(CSOURCES)
+	@PERL@ $(top_srcdir)/scripts/mk-unity.pl $(srcdir) $(CSOURCES) --exclude $(curl_EXCLUDE) > libcurl_unity.c
 
-nodist_libcurltool_la_SOURCES = libcurltool_unity.c
-libcurltool_la_SOURCES = $(curl_EXCLUDE)
-CLEANFILES += libcurltool_unity.c
+nodist_libcurl_la_SOURCES = libcurl_unity.c
+libcurl_la_SOURCES = $(curl_EXCLUDE)
+nodist_libcurlu_la_SOURCES = libcurl_unity.c
+libcurlu_la_SOURCES = $(curl_EXCLUDE)
+CLEANFILES = libcurl_unity.c
 else
-libcurltool_la_SOURCES = $(CURL_FILES)
-endif
-endif
-
-# Use absolute directory to disable VPATH
-ASCIIPAGE=$(top_builddir)/docs/cmdline-opts/curl.txt
-MKHELP=$(top_srcdir)/src/mkhelp.pl
-HUGE=tool_hugehelp.c
-
-HUGECMD = $(HUGEIT_$(V))
-HUGEIT_0 = @echo "  HUGE    " $@;
-HUGEIT_1 =
-HUGEIT_ = $(HUGEIT_0)
-
-if USE_MANUAL
-# Here are the stuff to create a built-in manual
-AM_CPPFLAGS += -DUSE_MANUAL
-
-$(ASCIIPAGE):
-	cd $(top_builddir)/docs && $(MAKE)
-
-if HAVE_LIBZ
-# This generates the tool_hugehelp.c file in both uncompressed and
-# compressed formats.
-$(HUGE): $(ASCIIPAGE) $(MKHELP)
-	$(HUGECMD) (echo '#include "tool_setup.h"' > $(HUGE);   \
-	echo '#ifndef HAVE_LIBZ' >> $(HUGE);                    \
-	$(PERL) $(MKHELP) < $(ASCIIPAGE) >> $(HUGE);     \
-	echo '#else' >> $(HUGE);                                \
-	$(PERL) $(MKHELP) -c < $(ASCIIPAGE) >> $(HUGE);  \
-	echo '#endif /* HAVE_LIBZ */' >> $(HUGE) )
-else # HAVE_LIBZ
-# This generates the tool_hugehelp.c file uncompressed only
-$(HUGE): $(ASCIIPAGE) $(MKHELP)
-	$(HUGECMD)(echo '#include "tool_setup.h"' > $(HUGE);    \
-	$(PERL) $(MKHELP) < $(ASCIIPAGE) >> $(HUGE) )
+libcurl_la_SOURCES = $(CSOURCES) $(HHEADERS)
+libcurlu_la_SOURCES = $(CSOURCES) $(HHEADERS)
 endif
 
-else # USE_MANUAL
-# built-in manual has been disabled, make a blank file
-$(HUGE):
-	echo '#include "tool_hugehelp.h"' >> $(HUGE)
+libcurl_la_CPPFLAGS_EXTRA =
+libcurl_la_LDFLAGS_EXTRA =
+libcurl_la_CFLAGS_EXTRA =
+
+if CURL_LT_SHLIB_USE_VERSION_INFO
+libcurl_la_LDFLAGS_EXTRA += $(VERSIONINFO)
 endif
 
-CLEANFILES += $(HUGE)
+if CURL_LT_SHLIB_USE_NO_UNDEFINED
+libcurl_la_LDFLAGS_EXTRA += -no-undefined
+endif
 
-CA_EMBED_CSOURCE = tool_ca_embed.c
-CURL_CFILES += $(CA_EMBED_CSOURCE)
-CLEANFILES += $(CA_EMBED_CSOURCE)
-if CURL_CA_EMBED_SET
-AM_CPPFLAGS += -DCURL_CA_EMBED
-MK_FILE_EMBED = $(top_srcdir)/src/mk-file-embed.pl
-$(CA_EMBED_CSOURCE): $(MK_FILE_EMBED) $(CURL_CA_EMBED)
-	$(PERL) $(MK_FILE_EMBED) --var curl_ca_embed < $(CURL_CA_EMBED) > $(CA_EMBED_CSOURCE)
+if CURL_LT_SHLIB_USE_MIMPURE_TEXT
+libcurl_la_LDFLAGS_EXTRA += -mimpure-text
+endif
+
+if CURL_LT_SHLIB_USE_VERSIONED_SYMBOLS
+libcurl_la_LDFLAGS_EXTRA += -Wl,--version-script=libcurl.vers
 else
-$(CA_EMBED_CSOURCE):
-	echo 'extern const void *curl_ca_embed; const void *curl_ca_embed;' > $(CA_EMBED_CSOURCE)
+# if symbol-hiding is enabled, hide them!
+if DOING_CURL_SYMBOL_HIDING
+libcurl_la_LDFLAGS_EXTRA += -export-symbols-regex '^curl_.*'
 endif
+endif
+
+if USE_CPPFLAG_CURL_STATICLIB
+libcurl_la_CPPFLAGS_EXTRA += -DCURL_STATICLIB
+else
+if HAVE_WINDRES
+libcurl_la_SOURCES += $(LIB_RCFILES)
+$(LIB_RCFILES): $(top_srcdir)/include/curl/curlver.h
+endif
+endif
+
+if DOING_CURL_SYMBOL_HIDING
+libcurl_la_CPPFLAGS_EXTRA += -DCURL_HIDDEN_SYMBOLS
+libcurl_la_CFLAGS_EXTRA += $(CFLAG_CURL_SYMBOL_HIDING)
+endif
+
+libcurl_la_CPPFLAGS = $(AM_CPPFLAGS) $(libcurl_la_CPPFLAGS_EXTRA)
+libcurl_la_LDFLAGS = $(AM_LDFLAGS) $(libcurl_la_LDFLAGS_EXTRA) $(CURL_LDFLAGS_LIB) $(LIBCURL_PC_LIBS_PRIVATE)
+libcurl_la_CFLAGS = $(AM_CFLAGS) $(libcurl_la_CFLAGS_EXTRA)
+
+libcurlu_la_CPPFLAGS = $(AM_CPPFLAGS) -DCURL_STATICLIB -DUNITTESTS
+libcurlu_la_LDFLAGS = $(AM_LDFLAGS) -static $(LIBCURL_PC_LIBS_PRIVATE)
+libcurlu_la_CFLAGS = $(AM_CFLAGS)
 
 CHECKSRC = $(CS_$(V))
 CS_0 = @echo "  RUN     " $@;
 CS_1 =
 CS_ = $(CS_0)
 
-# ignore generated C files since they play by slightly different rules!
 checksrc:
-	$(CHECKSRC)(@PERL@ $(top_srcdir)/scripts/checksrc.pl -D$(srcdir) \
-	  -W$(srcdir)/$(HUGE) \
-	  -W$(srcdir)/$(CA_EMBED_CSOURCE) \
-	  $(srcdir)/*.[ch])
+	$(CHECKSRC)(@PERL@ $(top_srcdir)/scripts/checksrc.pl -D$(srcdir)    \
+	-W$(srcdir)/curl_config.h $(srcdir)/*.[ch] $(srcdir)/vauth/*.[ch]   \
+	$(srcdir)/vtls/*.[ch] $(srcdir)/vquic/*.[ch] $(srcdir)/vssh/*.[ch])
 
 if DEBUGBUILD
 # for debug builds, we scan the sources on all regular make invokes
@@ -190,20 +155,17 @@ all-local: checksrc
 endif
 
 # disable the tests that are mostly causing false positives
-TIDYFLAGS=-checks=-clang-analyzer-security.insecureAPI.strcpy,-clang-analyzer-optin.performance.Padding,-clang-analyzer-valist.Uninitialized,-clang-analyzer-core.NonNullParamChecker,-clang-analyzer-core.NullDereference
+TIDYFLAGS=-checks=-clang-analyzer-security.insecureAPI.strcpy,-clang-analyzer-optin.performance.Padding,-clang-analyzer-valist.Uninitialized,-clang-analyzer-core.NonNullParamChecker,-clang-analyzer-core.NullDereference -quiet
 
 TIDY:=clang-tidy
 
 tidy:
-	$(TIDY) $(CURL_CFILES) $(TIDYFLAGS) -- $(curl_CPPFLAGS) $(CPPFLAGS) -DHAVE_CONFIG_H
+	$(TIDY) $(CSOURCES) $(TIDYFLAGS) -- $(AM_CPPFLAGS) $(CPPFLAGS) -DHAVE_CONFIG_H
 
-listhelp:
-	(cd $(top_srcdir)/docs/cmdline-opts && make listhelp)
+optiontable:
+	perl optiontable.pl < $(top_srcdir)/include/curl/curl.h > easyoptions.c
 
 if HAVE_WINDRES
-.rc.o:
-	$(RC) -I$(top_srcdir)/include -DCURL_EMBED_MANIFEST $(RCFLAGS) -i $< -o $@
+.rc.lo:
+	$(LIBTOOL) --tag=RC --mode=compile $(RC) -I$(top_srcdir)/include $(RCFLAGS) -i $< -o $@
 endif
-
-dist-hook:
-	rm -f $(distdir)/$(CA_EMBED_CSOURCE)

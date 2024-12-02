@@ -182,12 +182,12 @@ static void free_config_fields(struct OperationConfig *config)
   Curl_safefree(config->ech_config);
   Curl_safefree(config->ech_public);
 }
-
+/*
 void config_free(struct OperationConfig *config)
 {
   struct OperationConfig *last = config;
 
-  /* Free each of the structures in reverse order */
+  /* Free each of the structures in reverse order 
   while(last) {
     struct OperationConfig *prev = last->prev;
 
@@ -197,3 +197,4 @@ void config_free(struct OperationConfig *config)
     last = prev;
   }
 }
+*/
